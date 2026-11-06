@@ -1,0 +1,221 @@
+/* =========================================================
+   CONFIG: edit only this block
+   ========================================================= */
+const CONFIG = {
+  // PLACEHOLDER: country code + number, digits only (e.g. "919876543210")
+  whatsappNumber: "910000000000",
+  // PLACEHOLDER: how the phone number is displayed on the site
+  phoneDisplay: "+91 00000 00000",
+  // PLACEHOLDER: used for tap-to-call (tel:) links
+  phoneTel: "+910000000000",
+  // PLACEHOLDER email
+  email: "hello@miravale.com",
+  // PLACEHOLDER Instagram
+  instagramUrl: "https://instagram.com/miravale",
+  instagramHandle: "@miravale",
+  // OPTIONAL: form backend, e.g. "https://formspree.io/f/xxxxxxx".
+  // Leave "" to use the WhatsApp fallback (enquiry opens in WhatsApp with all details).
+  formEndpoint: "",
+  // Default message for WhatsApp buttons
+  greeting: "Hello Mira Vale, I’d love to enquire about wedding photography."
+};
+
+/* ========================================================= */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const html = document.documentElement;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fine = matchMedia('(hover:hover) and (pointer:fine)').matches;
+const isMobile = () => matchMedia('(max-width: 900px)').matches;
+const pad2 = n => String(n + 1).padStart(2, '0');
+let lenis = null;
+
+if (CONFIG.whatsappNumber === "910000000000") console.warn('Mira Vale: update CONFIG.whatsappNumber (still a placeholder).');
+const waLink = t => `https://wa.me/${CONFIG.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(t)}`;
+
+/* ---------- Apply config to all contact links ---------- */
+$$('[data-wa]').forEach(a => { a.href = waLink(a.dataset.wa || CONFIG.greeting); a.target = '_blank'; a.rel = 'noopener'; });
+$$('[data-cfg="email"]').forEach(a => a.href = 'mailto:' + CONFIG.email);
+$$('[data-cfg="phone"]').forEach(a => a.href = 'tel:' + CONFIG.phoneTel);
+$$('[data-cfg="instagram"]').forEach(a => { a.href = CONFIG.instagramUrl; a.target = '_blank'; a.rel = 'noopener'; });
+const TXT = { email: CONFIG.email, phone: CONFIG.phoneDisplay, whatsapp: CONFIG.phoneDisplay, instagram: CONFIG.instagramHandle };
+$$('[data-txt]').forEach(el => { el.textContent = TXT[el.dataset.txt]; });
+$('#yr').textContent = new Date().getFullYear();
+
+/* ---------- Mobile menu ---------- */
+const burger = $('.burger'), menu = $('#menu');
+function setMenu(open) {
+  html.classList.toggle('menu-open', open);
+  burger.setAttribute('aria-expanded', open);
+  burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  menu.setAttribute('aria-hidden', !open);
+  if (lenis) open ? lenis.stop() : lenis.start();
+}
+burger.addEventListener('click', () => setMenu(!html.classList.contains('menu-open')));
+addEventListener('resize', () => { if (!isMobile() && html.classList.contains('menu-open')) setMenu(false); });
+
+/* ---------- Anchor navigation ---------- */
+$$('a[href^="#"]').forEach(a => a.addEventListener('click', e => {
+  const id = a.getAttribute('href');
+  if (id.length < 2) return;
+  const target = id === '#top' ? null : $(id);
+  if (id !== '#top' && !target) return;
+  e.preventDefault();
+  if (html.classList.contains('menu-open')) setMenu(false);
+  if (lenis) lenis.scrollTo(target || 0, { duration: 1.6 });
+  else if (target) target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });
+  else scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+}));
+
+/* ---------- FAQ accordion ---------- */
+$$('.faq-q').forEach(btn => btn.addEventListener('click', () => {
+  const item = btn.parentElement, open = !item.classList.contains('open');
+  $$('.faq-item.open').forEach(i => { i.classList.remove('open'); $('.faq-q', i).setAttribute('aria-expanded', 'false'); });
+  item.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', open);
+  setTimeout(() => window.ScrollTrigger && ScrollTrigger.refresh(), 600);
+}));
+
+/* ---------- Immersive photo viewer ---------- */
+const lb = $('.lb'), lbImg = $('.lb-img'), lbCount = $('.lb-count');
+const FILES = Array.from({ length: 10 }, (_, i) => `mrg${i + 1}.jpg`);
+let cur = 0, busy = false, opener = null;
+
+$$('figure[data-lb], .slide[data-lb]').forEach(el => {
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  el.setAttribute('aria-label', `Open photograph ${+el.dataset.lb + 1} full screen`);
+  el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
+});
+
+function openLb(i, x, y, from) {
+  cur = i; opener = from || null;
+  lbImg.classList.remove('out', 'nt');
+  lbImg.src = FILES[i];
+  lbCount.textContent = `${pad2(i)} / 10`;
+  lb.style.setProperty('--x', x + 'px');
+  lb.style.setProperty('--y', y + 'px');
+  lb.classList.add('opening', 'on');
+  lb.setAttribute('aria-hidden', 'false');
+  if (lenis) lenis.stop();
+  html.style.overflow = 'hidden';
+  setTimeout(() => lb.classList.remove('opening'), 1400);
+  $('.lb-close').focus({ preventScroll: true });
+}
+function closeLb() {
+  lb.classList.remove('on', 'opening');
+  lb.setAttribute('aria-hidden', 'true');
+  setTimeout(() => {
+    html.style.overflow = '';
+    if (lenis && !html.classList.contains('menu-open')) lenis.start();
+    if (opener) opener.focus({ preventScroll: true });
+  }, 900);
+}
+function go(d) {
+  if (busy) return;
+  busy = true;
+  const n = (cur + d + FILES.length) % FILES.length;
+  lbImg.style.setProperty('--dx', -40 * d + 'px');
+  lbImg.classList.add('out');
+  setTimeout(() => {
+    cur = n;
+    lbImg.src = FILES[n];
+    lbCount.textContent = `${pad2(n)} / 10`;
+    const show = () => {
+      lbImg.style.setProperty('--dx', 40 * d + 'px');
+      lbImg.classList.add('nt');
+      void lbImg.offsetWidth;
+      lbImg.classList.remove('nt', 'out');
+      setTimeout(() => { busy = false; }, 450);
+    };
+    (lbImg.decode ? lbImg.decode() : Promise.resolve()).catch(() => {}).then(show);
+  }, 320);
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-lb]');
+  if (t && !lb.classList.contains('on')) openLb(+t.dataset.lb, e.clientX || innerWidth / 2, e.clientY || innerHeight / 2, t);
+});
+$('.lb-close').addEventListener('click', closeLb);
+$('.lb-prev').addEventListener('click', () => go(-1));
+$('.lb-next').addEventListener('click', () => go(1));
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && html.classList.contains('menu-open')) setMenu(false);
+  if (!lb.classList.contains('on')) return;
+  if (e.key === 'Escape') closeLb();
+  if (e.key === 'ArrowRight') go(1);
+  if (e.key === 'ArrowLeft') go(-1);
+});
+let tx = 0, ty = 0;
+lb.addEventListener('touchstart', e => { tx = e.changedTouches[0].clientX; ty = e.changedTouches[0].clientY; }, { passive: true });
+lb.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1);
+}, { passive: true });
+
+/* ---------- Mobile reel counter (swipe carousel) ---------- */
+const reelTrack = $('.reel-track'), reelCount = $('.reel-count');
+reelTrack.addEventListener('scroll', () => {
+  if (!isMobile() && !reduce) return;
+  const first = reelTrack.children[0];
+  const gap = parseFloat(getComputedStyle(reelTrack).columnGap) || 0;
+  const i = Math.round(reelTrack.scrollLeft / (first.offsetWidth + gap));
+  reelCount.textContent = pad2(Math.min(9, Math.max(0, i)));
+}, { passive: true });
+
+/* ---------- Package buttons prefill the form ---------- */
+$$('[data-package]').forEach(a => a.addEventListener('click', () => {
+  $('#f-message').value = `I’m interested in the ${a.dataset.package} package (sample pricing). `;
+  $('#f-type').value = $('#f-type').options[1].value;
+}));
+
+/* ---------- Enquiry form ---------- */
+const form = $('#enquiry'), sent = $('#sent');
+$('#f-date').min = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+const RULES = {
+  name: v => v.trim().length >= 2 || 'Please enter your full name.',
+  phone: v => { const d = v.replace(/\D/g, ''); return (/^[+\d][\d\s\-()]*$/.test(v.trim()) && d.length >= 7 && d.length <= 15) || 'Enter a valid phone number (7–15 digits).'; },
+  email: v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()) || 'Enter a valid email address.',
+  date: v => {
+    if (!v) return 'Please choose your wedding date.';
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    return new Date(v + 'T00:00:00') >= t || 'Please choose a date from today onwards.';
+  },
+  location: v => v.trim().length >= 2 || 'Please enter the wedding location.',
+  type: v => !!v || 'Please select a type of event.',
+  budget: v => !!v || 'Please select an approximate budget.',
+  message: v => v.length <= 1000 || 'Please keep your message under 1000 characters.'
+};
+function check(el) {
+  const r = RULES[el.name] ? RULES[el.name](el.value) : true;
+  const field = el.closest('.field'), bad = r !== true;
+  field.classList.toggle('bad', bad);
+  el.setAttribute('aria-invalid', bad);
+  $('.err', field).textContent = bad ? r : '';
+  return !bad;
+}
+const formFields = () => [...form.elements].filter(el => RULES[el.name]);
+formFields().forEach(el => {
+  el.addEventListener('blur', () => check(el));
+  ['input', 'change'].forEach(ev => el.addEventListener(ev, () => { if (el.closest('.field').classList.contains('bad')) check(el); }));
+});
+
+function buildText(d) {
+  return [
+    'New enquiry — Mira Vale',
+    `Name: ${d.name}`, `Phone: ${d.phone}`, `Email: ${d.email}`,
+    `Wedding date: ${d.date}`, `Location: ${d.location}`,
+    `Event: ${d.type}`, `Budget: ${d.budget}`,
+    `Message: ${d.message || '—'}`
+  ].join('\n');
+}
+function showSent(mode, d, text) {
+  const wa = $('#sent-wa'), mail = $('#sent-mail');
+  wa.href = waLink(text);
+  mail.href = `mailto:${CONFIG.email}?subject=${encodeURIComponent('Wedding enquiry from ' + d.name)}&body=${encodeURIComponent(text)}`;
+  if (mode === 'sent') {
+    $('#sent-title').textContent = `Thank you, ${d.name.split(' ')[0]}.`;
+    $('#sent-text').textContent = 'Your enquiry has been sent. You’ll hear back soon by email or phone.';
+    wa.hidden = mail.hidden = true;
+  } else if (mode === 'failed') {
+    $('#sent-title').textContent = 'We couldn’t send that online.';
